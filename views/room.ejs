@@ -4,13 +4,345 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Room</title>
+    <title>Chat Room</title>
+    <style>
+        /* Global reset */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(45deg, #6a11cb, #2575fc);
+            /* Gradient background */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            padding: 20px;
+        }
+
+        /* Main container to center content */
+        .container {
+            display: flex;
+            width: 100%;
+            max-width: 1000px;
+            height: 90vh;
+            background: #ffffff;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        /* Left panel */
+        .left-panel {
+            width: 250px;
+            background: #1e2a47;
+            /* Dark background for the left panel */
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            border-radius: 15px 0 0 15px;
+        }
+
+        .left-panel h3 {
+            font-size: 22px;
+            color: #ffffff;
+            margin-bottom: 20px;
+        }
+
+        /* User list styling */
+        ul {
+            list-style: none;
+            padding-left: 0;
+            margin-bottom: 20px;
+        }
+
+        ul li {
+            padding: 12px;
+            background-color: #4e73df;
+            /* Blue background for users */
+            margin: 8px 0;
+            border-radius: 8px;
+            font-size: 18px;
+            color: white;
+            text-align: center;
+            transition: background-color 0.3s ease;
+        }
+
+        ul li:hover {
+            background-color: #2e59d9;
+            /* Slightly darker blue on hover */
+        }
+
+        /* Right panel */
+        .right-panel {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 30px;
+            background-color: #f7f9fc;
+            /* Light background for chat panel */
+        }
+
+        h1 {
+            font-size: 28px;
+            text-align: center;
+            color: #4e73df;
+            margin-bottom: 30px;
+        }
+
+        p {
+            font-size: 18px;
+            color: #4e73df;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        /* Scrollable messages container */
+        #messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            border: 1px solid #ddd;
+            box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 12px;
+            border-radius: 12px;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+
+        .message .username {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .message.self {
+            background-color: #d4edda;
+            /* Light green for the sender */
+            text-align: right;
+        }
+
+        .message.other {
+            background-color: #f1f1f1;
+            /* Light gray for others */
+        }
+
+        /* Input and button */
+        #messageInput {
+            width: calc(100% - 90px);
+            padding: 12px;
+            font-size: 16px;
+            border-radius: 12px;
+            border: 1px solid #ddd;
+            background-color: #f1f1f1;
+            transition: background-color 0.3s ease;
+        }
+
+        #messageInput:focus {
+            background-color: #e0e0e0;
+            outline: none;
+        }
+
+        #sendMessageBtn {
+            padding: 12px 20px;
+            font-size: 16px;
+            background-color: #5cb85c;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        #sendMessageBtn:hover {
+            background-color: #4cae4c;
+        }
+
+        /* Make the message input stick to the bottom */
+        .message-input-container {
+            display: flex;
+            margin-top: auto;
+        }
+
+        .message-input-container input {
+            width: calc(100% - 80px);
+        }
+
+        .message-input-container button {
+            width: 70px;
+            margin-left: 10px;
+        }
+
+        /* Responsive design */
+        @media (max-width: 800px) {
+            .container {
+                flex-direction: column;
+                height: auto;
+            }
+
+            .left-panel {
+                width: 100%;
+                border-right: none;
+                border-bottom: 2px solid #ddd;
+                padding: 15px;
+            }
+
+            .right-panel {
+                padding: 20px;
+            }
+
+            #messageInput {
+                width: calc(100% - 80px);
+            }
+        }
+    </style>
 </head>
 
 <body>
-    <h1>Welcome to the room, <%= username %>!</h1>
-    <h1>Room, <%= roomId %>!</h1>
-    <p>You have successfully created a room with your username.</p>
+    <div class="container">
+        <!-- Left Panel for Users -->
+        <div class="left-panel">
+            <h3>Users in the Room</h3>
+            <ul id="userList">
+                <% users.forEach(user=> { %>
+                    <li>
+                        <%= user %>
+                    </li>
+                    <% }); %>
+            </ul>
+        </div>
+
+        <!-- Right Panel for Chat -->
+        <div class="right-panel">
+            <h1>Welcome to the Chat Room</h1>
+            <p>Welcome, <span id="displayUsername"></span>! You are in the room.</p>
+
+            <h3>Messages:</h3>
+            <div id="messages"></div>
+
+            <div class="message-input-container">
+                <input type="text" id="messageInput" placeholder="Type a message..." />
+                <button id="sendMessageBtn">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const roomId = "<%= roomId %>";
+        const username = "<%= username %>";
+
+        // Store roomId and username in localStorage when user joins the room
+        localStorage.setItem('roomId', roomId);
+        localStorage.setItem('username', username);
+
+        // Retrieve roomId and username from localStorage when the page loads
+        const storedRoomId = localStorage.getItem('roomId');
+        const storedUsername = localStorage.getItem('username');
+
+        // Display the stored username on the page
+        document.getElementById("displayUsername").textContent = storedUsername || username;
+
+        // Connect to the server
+        const socket = io({
+            transports: ['websocket'],
+            upgrade: false,
+            query: { roomId: storedRoomId }
+        });
+
+        // Emit join-room event when the page loads
+        socket.emit("join-room", { roomId: storedRoomId, username: storedUsername });
+        socket.on("room-joined", (obj) => console.log('room-joined', obj));
+
+        // Function to load and display messages from localStorage
+        function loadMessages() {
+            const messagesContainer = document.getElementById("messages");
+            const storedMessages = JSON.parse(localStorage.getItem('chatMessages')) || [];
+
+            // Clear existing messages
+            messagesContainer.innerHTML = '';
+
+            // Display messages stored in localStorage
+            storedMessages.forEach((msg) => {
+                const messageElement = document.createElement("div");
+                messageElement.classList.add('message', msg.by === storedUsername ? 'self' : 'other');
+                messageElement.innerHTML = `<span class="username">${msg.by}</span>: ${msg.message}`;
+                messagesContainer.appendChild(messageElement);
+            });
+
+            // Auto-scroll to the latest message
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // Load messages from localStorage when the page loads
+        loadMessages();
+
+        // Listen for incoming messages and display them
+        socket.on("message", ({ by, message }) => {
+            const messageContainer = document.getElementById("messages");
+
+            const messageElement = document.createElement("div");
+            messageElement.classList.add('message', by === storedUsername ? 'self' : 'other');
+            messageElement.innerHTML = `<span class="username">${by}</span>: ${message}`;
+            messageContainer.appendChild(messageElement);
+
+            // Auto-scroll to the latest message
+            messageContainer.scrollTop = messageContainer.scrollHeight;
+
+            // Store the message in localStorage to persist it
+            const storedMessages = JSON.parse(localStorage.getItem('chatMessages')) || [];
+            storedMessages.push({ by, message });
+            localStorage.setItem('chatMessages', JSON.stringify(storedMessages));
+        });
+
+        // Handle sending a message
+        const sendMessageBtn = document.getElementById("sendMessageBtn");
+        const messageInput = document.getElementById("messageInput");
+
+        sendMessageBtn.addEventListener("click", () => {
+            const messageText = messageInput.value.trim();
+            if (messageText) {
+                const message = { username: storedUsername, text: messageText };
+                socket.emit("message", { username: storedUsername, roomId: storedRoomId, message: messageText });
+
+                // Display the message sent by the user immediately on the page
+                const messageContainer = document.getElementById("messages");
+                const messageElement = document.createElement("div");
+                messageElement.classList.add('message', 'self');
+                messageElement.innerHTML = `<span class="username">You</span>: ${messageText}`;
+                messageContainer.appendChild(messageElement);
+
+                // Store the message in localStorage to persist it
+                const storedMessages = JSON.parse(localStorage.getItem('chatMessages')) || [];
+                storedMessages.push({ by: storedUsername, message: messageText });
+                localStorage.setItem('chatMessages', JSON.stringify(storedMessages));
+
+                // Clear input field after sending
+                messageInput.value = "";
+
+                // Auto-scroll to the latest message
+                messageContainer.scrollTop = messageContainer.scrollHeight;
+            }
+        });
+
+        // Allow pressing Enter to send the message
+        messageInput.addEventListener("keypress", (event) => {
+            if (event.key === "Enter") {
+                sendMessageBtn.click();
+            }
+        });
+    </script>
 </body>
 
 </html>
