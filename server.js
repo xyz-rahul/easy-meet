@@ -17,6 +17,7 @@ const socket = new socketIO.Server(server, {
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(express.static("public"));
 app.set("view engine", "ejs");
 app.use(
   session({
@@ -28,6 +29,9 @@ app.use(
 
 app.get("/", (req, res) => {
   res.render("create-room");
+});
+app.get("/video", (req, res) => {
+  res.render("video");
 });
 
 app.post("/create-room", (req, res) => {
@@ -81,14 +85,68 @@ socket.on("connection", (socket) => {
   const { roomId } = socket.handshake.query;
   socket.join(roomId);
 
-  socket.on("disconnect", () => {
-    console.log("User disconnected with socketID: ", socket.id);
+  socket.on("message", ({ username, roomId, message }) => {
+    socket.to(roomId).emit("message", { by: username, message, a: "a" });
   });
 
-  socket.on("message", ({ username, roomId, message }) => {
-    console.log("message", { username, roomId, message });
-    socket.to(roomId).emit("message", { by: username, message, a: "a" });
-    // socket.emit("message", { by: username, message });
+  // Listen for 'offer' from client (initial offer for video connection)
+  socket.on("offer", (data) => {
+    console.log("Offer received from " + data.from);
+    // Broadcast the offer to the room (or to a specific user)
+    // socket.to(data.roomId).emit("offer", {
+    //   offer: data.offer,
+    //   from: data.from,
+    //   roomId: data.roomId,
+    // });
+    console.log("offer", data);
+
+    socket.broadcast.emit("offer", {
+      offer: data.offer,
+      from: data.from,
+      roomId: data.roomId,
+    });
+  });
+
+  // Listen for 'answer' from client (the response to an offer)
+  socket.on("answer", (data) => {
+    console.log("Answer received from " + data.from);
+    // Broadcast the answer to the specific user who made the offer
+    // socket.to(data.roomId).emit("answer", {
+    //   answer: data.answer,
+    //   from: data.from,
+    //   roomId: data.roomId,
+    // });
+    console.log("answer", data);
+
+    socket.broadcast.emit("answer", {
+      answer: data.answer,
+      from: data.from,
+      roomId: data.roomId,
+    });
+  });
+
+  // Listen for ICE candidates (for NAT traversal)
+  socket.on("candidate", (data) => {
+    console.log("candidate", data);
+    console.log("Candidate received from " + data.from);
+    // Forward the candidate to the appropriate user
+    // socket.to(data.roomId).emit("candidate", {
+    //   candidate: data.candidate,
+    //   from: data.from,
+    //   roomId: data.roomId,
+    // });
+    socket.broadcast.emit("candidate", {
+      candidate: data.candidate,
+      from: data.from,
+      roomId: data.roomId,
+    });
+  });
+
+  // Handle room creation (user joining a specific room)
+  socket.on("joinRoom", (roomId) => {
+    console.log("User joining room: " + roomId);
+    socket.join(roomId); // Add the user to the specified room
+    socket.emit("joinedRoom", roomId); // Let the user know they've joined the room
   });
 });
 

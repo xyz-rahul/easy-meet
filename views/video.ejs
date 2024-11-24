@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Conference</title>
+    <style>
+        video {
+            width: 300px;
+            height: 200px;
+            margin: 10px;
+            border: 1px solid #ccc;
+        }
+
+        #localVideo {
+            width: 300px;
+            height: 200px;
+            margin: 10px;
+            border: 1px solid #ccc;
+        }
+
+        #remoteVideos {
+            display: flex;
+            flex-wrap: wrap;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Video Conference</h1>
+    <div id="localContainer">
+        <h2>Your Video</h2>
+        <video id="localVideo" autoplay muted></video>
+    </div>
+
+    <div id="remoteVideos">
+        <!-- Remote videos will be appended here dynamically -->
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        // const localUser = 'rahul'; // Define local user
+        const localUser = "<%= username %>";
+        const roomId = 'room123';  // Room ID
+
+        class VideoConference {
+            constructor(socket) {
+                this.socket = socket || io(); // Initialize socket.io connection
+                this.localStream = null;
+                this.peerConnections = {};  // Track peer connections by user ID
+                this.streamVideoMap = new Map();
+                this.init();
+            }
+
+            init() {
+                this.socket.on("offer", async ({ offer, from, roomId }) => {
+                    const peerConnection = await this.createPeerConnection(from, roomId);
+                    this.peerConnections[from] = peerConnection;
+                    await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+                    const answer = await peerConnection.createAnswer();
+                    await peerConnection.setLocalDescription(answer);
+                    this.socket.emit("answer", { answer, from: localUser, to: from, roomId });
+                });
+
+                this.socket.on("answer", async ({ answer, from, roomId }) => {
+                    const peerConnection = this.peerConnections[from];
+                    if (peerConnection) {
+                        await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+                    }
+                });
+
+                this.socket.on("candidate", async ({ candidate, from, roomId }) => {
+                    const peerConnection = this.peerConnections[from];
+                    if (peerConnection && candidate) {
+                        try {
+                            await peerConnection.addIceCandidate(candidate);
+                        } catch (e) {
+                            console.error("Error adding received ICE candidate", e);
+                        }
+                    }
+                });
+
+                this.socket.on("disconnect", (userId) => {
+                    this.removeVideoElement(userId);
+                    delete this.peerConnections[userId];
+                });
+            }
+
+            async makeOffer(roomId) {
+                const peerConnection = await this.createPeerConnection(localUser, roomId);
+                this.peerConnections[localUser] = peerConnection;
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(new RTCSessionDescription(offer));
+                this.socket.emit("offer", { offer, from: localUser, roomId });
+            }
+
+            async getLocalStream() {
+                try {
+                    this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+                    document.getElementById('localVideo').srcObject = this.localStream;
+                    return this.localStream;
+                } catch (err) {
+                    console.error('Error accessing media devices.', err);
+                }
+            }
+
+            async createPeerConnection(remoteUser, roomId) {
+                await this.getLocalStream(); // Ensure the local stream is available
+                const configuration = {
+                    iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+                };
+                const peerConnection = new RTCPeerConnection(configuration);
+
+                // Add local media tracks to the peer connection
+                this.localStream.getTracks().forEach(track => peerConnection.addTrack(track, this.localStream));
+
+                // Handle ICE candidates
+                peerConnection.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        this.socket.emit("candidate", { candidate: event.candidate, from: localUser, to: remoteUser, roomId });
+                    }
+                };
+
+                // Handle incoming remote tracks
+                peerConnection.ontrack = (event) => {
+                    const remoteStream = event.streams[0];
+                    let videoElement = this.streamVideoMap.get(remoteUser);
+                    if (!videoElement) {
+                        videoElement = this.createAndAppendVideoElement(remoteUser);
+                        this.streamVideoMap.set(remoteUser, videoElement);
+                    }
+                    videoElement.srcObject = remoteStream;
+                    console.log('remote stream ', remoteStream)
+                    console.log('video element ', videoElement)
+                    console.log('peerconnections ', this.peerConnections)
+                };
+
+                peerConnection.onconnectionstatechange = (event) => {
+                    if (peerConnection.connectionState === 'disconnected') {
+                        console.log('disconnected', remoteUser)
+                        this.removeVideoElement(remoteUser);
+                    }
+                };
+
+                return peerConnection;
+            }
+
+            createAndAppendVideoElement(id) {
+                const videoBlockContainer = document.getElementById("remoteVideos");
+                const videoElement = document.createElement("video");
+                videoElement.id = id;
+                videoElement.setAttribute("autoplay", "true");
+                videoElement.setAttribute("muted", "true");
+                videoElement.setAttribute("playsinline", "true");
+                videoBlockContainer.appendChild(videoElement);
+                return videoElement;
+            }
+
+            removeVideoElement(userId) {
+                const videoElement = this.streamVideoMap.get(userId);
+                if (videoElement) {
+                    videoElement.srcObject = null;
+                    videoElement.remove();
+                    this.streamVideoMap.delete(userId);
+                }
+            }
+        }
+
+        const socket = io({ transports: ['websocket'], upgrade: false });
+        const videoConference = new VideoConference(socket);
+
+        // Start the conference
+        videoConference.makeOffer(roomId);
+    </script>
+</body>
+
+</html>
