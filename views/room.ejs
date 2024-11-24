@@ -4,8 +4,75 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat Room</title>
+    <title>Chat Room & Video Conference</title>
     <link rel="stylesheet" type="text/css" href="/style.css">
+    <style>
+        /* Styling for Video Conference */
+        video {
+            width: 300px;
+            height: 200px;
+            margin: 10px;
+            border: 1px solid #ccc;
+        }
+
+        #localVideo {
+            width: 300px;
+            height: 200px;
+            margin: 10px;
+            border: 1px solid #ccc;
+        }
+
+        #remoteVideos {
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        /* Styling for Chat Room */
+        .container {
+            display: flex;
+        }
+
+        .left-panel {
+            width: 30%;
+            padding: 20px;
+            border-right: 1px solid #ccc;
+        }
+
+        .right-panel {
+            width: 70%;
+            padding: 20px;
+        }
+
+        .message-input-container {
+            margin-top: 20px;
+        }
+
+        .message-input-container input {
+            width: 80%;
+            padding: 10px;
+        }
+
+        .message-input-container button {
+            width: 18%;
+            padding: 10px;
+        }
+
+        .message {
+            margin: 10px 0;
+        }
+
+        .message.self {
+            background-color: #e0f7fa;
+        }
+
+        .message.other {
+            background-color: #f1f1f1;
+        }
+
+        .username {
+            font-weight: bold;
+        }
+    </style>
 </head>
 
 <body>
@@ -37,150 +104,42 @@
         </div>
     </div>
 
+    <!-- Video Conference Section -->
+    <h1>Video Conference</h1>
+    <div id="localContainer">
+        <h2>Your Video</h2>
+        <video id="localVideo" autoplay muted></video>
+    </div>
+
+    <div id="remoteVideos">
+        <!-- Remote videos will be appended here dynamically -->
+    </div>
+
     <script src="/socket.io/socket.io.js"></script>
-    <script>// Global Variables
+    <script type="module">
+        import ChatApp from '/ChatApp.js';
+        import VideoConference from '/VideoConference.js';
+
+        const elements = {
+            messagesContainer: document.getElementById('messages'),
+            messageInput: document.getElementById('messageInput'),
+            sendMessageBtn: document.getElementById('sendMessageBtn'),
+            localContainer: document.getElementById('localContainer'),
+            remoteVideosContainer: document.getElementById('remoteVideos')
+        };
+
         const roomId = "<%= roomId %>";
         const username = "<%= username %>";
-        const localStorageRoomKey = `chatMessages_${roomId}`;
 
-        // Store user and room details in localStorage
-        function initializeLocalStorage() {
-            localStorage.setItem('roomId', roomId);
-            localStorage.setItem('username', username);
-        }
+        // Initialize ChatApp
+        const chatApp = new ChatApp(roomId, username, elements);
+        chatApp.initialize();
 
-        // Retrieve stored values from localStorage
-        function getStoredData() {
-            return {
-                storedRoomId: localStorage.getItem('roomId'),
-                storedUsername: localStorage.getItem('username'),
-            };
-        }
-
-        // Display username on the page
-        function displayUsername(username) {
-            const displayUsernameElement = document.getElementById("displayUsername");
-            displayUsernameElement.textContent = username;
-        }
-
-        // Connect to the socket server
-        function initializeSocket(roomId) {
-            return io({
-                transports: ['websocket'],
-                upgrade: false,
-                query: { roomId },
-            });
-        }
-
-        // Load and display messages from localStorage
-        function loadMessages(container, storedRoomId, storedUsername) {
-            const storedMessages = JSON.parse(localStorage.getItem(`chatMessages_${storedRoomId}`)) || [];
-            container.innerHTML = ''; // Clear the container
-
-            storedMessages.forEach((msg) => {
-                if (isMessageExpired(msg.timestamp)) return; // Skip expired messages
-                appendMessage(container, msg.by, msg.message, storedUsername);
-            });
-
-            scrollToBottom(container);
-        }
-
-        // Check if a message has expired
-        function isMessageExpired(timestamp) {
-            const oneDay = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
-            return Date.now() - timestamp > oneDay;
-        }
-
-        // Append a single message to the chat container
-        function appendMessage(container, by, message, storedUsername) {
-            const messageElement = document.createElement("div");
-            messageElement.classList.add('message', by === storedUsername ? 'self' : 'other');
-            messageElement.innerHTML = `<span class="username">${by}</span>: ${message}`;
-            container.appendChild(messageElement);
-        }
-
-        // Scroll to the bottom of the container
-        function scrollToBottom(container) {
-            container.scrollTop = container.scrollHeight;
-        }
-
-        // Save a message to localStorage
-        function saveMessageToLocalStorage(roomId, message) {
-            const storedMessages = JSON.parse(localStorage.getItem(`chatMessages_${roomId}`)) || [];
-            storedMessages.push(message);
-            localStorage.setItem(`chatMessages_${roomId}`, JSON.stringify(storedMessages));
-        }
-
-        // Handle incoming messages from the socket
-        function handleIncomingMessage(socket, container, storedUsername, roomId) {
-            socket.on("message", ({ by, message }) => {
-                appendMessage(container, by, message, storedUsername);
-                scrollToBottom(container);
-
-                // Save the message locally
-                saveMessageToLocalStorage(roomId, { by, message, timestamp: Date.now() });
-            });
-        }
-
-        // Handle sending a new message
-        function sendMessage(socket, inputField, container, storedUsername, roomId) {
-            const messageText = inputField.value.trim();
-            if (!messageText) return;
-
-            // Emit the message to the server
-            socket.emit("message", { username: storedUsername, roomId, message: messageText });
-
-            // Append the message locally
-            appendMessage(container, "You", messageText, storedUsername);
-
-            // Save the message locally
-            saveMessageToLocalStorage(roomId, { by: storedUsername, message: messageText, timestamp: Date.now() });
-
-            // Clear the input field
-            inputField.value = '';
-            scrollToBottom(container);
-        }
-
-        // Add event listeners for message input and send button
-        function initializeMessageSending(socket, inputField, sendButton, container, storedUsername, roomId) {
-            sendButton.addEventListener("click", () => {
-                sendMessage(socket, inputField, container, storedUsername, roomId);
-            });
-
-            inputField.addEventListener("keypress", (event) => {
-                if (event.key === "Enter") sendMessage(socket, inputField, container, storedUsername, roomId);
-            });
-        }
-
-        // Main initialization function
-        function initializeChatApp() {
-            // Initialize localStorage and retrieve stored data
-            initializeLocalStorage();
-            const { storedRoomId, storedUsername } = getStoredData();
-
-            // Display username
-            displayUsername(storedUsername);
-
-            // Initialize socket connection
-            const socket = initializeSocket(storedRoomId);
-
-            // Get DOM elements
-            const messagesContainer = document.getElementById("messages");
-            const messageInput = document.getElementById("messageInput");
-            const sendMessageBtn = document.getElementById("sendMessageBtn");
-
-            // Load existing messages
-            loadMessages(messagesContainer, storedRoomId, storedUsername);
-
-            // Handle incoming messages
-            handleIncomingMessage(socket, messagesContainer, storedUsername, storedRoomId);
-
-            // Set up message sending functionality
-            initializeMessageSending(socket, messageInput, sendMessageBtn, messagesContainer, storedUsername, storedRoomId);
-        }
-
-        // Run the chat application
-        initializeChatApp();
+        // Initialize VideoConference
+        const localVideoElement = document.getElementById('localVideo');
+        const socket = io({ transports: ['websocket'], upgrade: false });
+        const videoConference = new VideoConference(socket, username, roomId, localVideoElement, elements.remoteVideosContainer);
+        videoConference.makeOffer();
     </script>
 </body>
 
