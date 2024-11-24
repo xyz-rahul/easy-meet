@@ -239,8 +239,7 @@
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script>
-        const roomId = "<%= roomId %>";
+    <script>const roomId = "<%= roomId %>";
         const username = "<%= username %>";
 
         // Store roomId and username in localStorage when user joins the room
@@ -268,13 +267,18 @@
         // Function to load and display messages from localStorage
         function loadMessages() {
             const messagesContainer = document.getElementById("messages");
-            const storedMessages = JSON.parse(localStorage.getItem('chatMessages')) || [];
+            const storedMessages = JSON.parse(localStorage.getItem('chatMessages_' + storedRoomId)) || [];
 
             // Clear existing messages
             messagesContainer.innerHTML = '';
 
             // Display messages stored in localStorage
             storedMessages.forEach((msg) => {
+                // Check if the message has expired (older than 1 day)
+                if (Date.now() - msg.timestamp > 24 * 60 * 60 * 1000) { // 24 hours (1 day)
+                    return; // Skip expired messages
+                }
+
                 const messageElement = document.createElement("div");
                 messageElement.classList.add('message', msg.by === storedUsername ? 'self' : 'other');
                 messageElement.innerHTML = `<span class="username">${msg.by}</span>: ${msg.message}`;
@@ -300,10 +304,10 @@
             // Auto-scroll to the latest message
             messageContainer.scrollTop = messageContainer.scrollHeight;
 
-            // Store the message in localStorage to persist it
-            const storedMessages = JSON.parse(localStorage.getItem('chatMessages')) || [];
-            storedMessages.push({ by, message });
-            localStorage.setItem('chatMessages', JSON.stringify(storedMessages));
+            // Store the message in localStorage to persist it (with timestamp)
+            const storedMessages = JSON.parse(localStorage.getItem('chatMessages_' + storedRoomId)) || [];
+            storedMessages.push({ by, message, timestamp: Date.now() });
+            localStorage.setItem('chatMessages_' + storedRoomId, JSON.stringify(storedMessages));
         });
 
         // Handle sending a message
@@ -323,10 +327,10 @@
                 messageElement.innerHTML = `<span class="username">You</span>: ${messageText}`;
                 messageContainer.appendChild(messageElement);
 
-                // Store the message in localStorage to persist it
-                const storedMessages = JSON.parse(localStorage.getItem('chatMessages')) || [];
-                storedMessages.push({ by: storedUsername, message: messageText });
-                localStorage.setItem('chatMessages', JSON.stringify(storedMessages));
+                // Store the message in localStorage to persist it (with timestamp)
+                const storedMessages = JSON.parse(localStorage.getItem('chatMessages_' + storedRoomId)) || [];
+                storedMessages.push({ by: storedUsername, message: messageText, timestamp: Date.now() });
+                localStorage.setItem('chatMessages_' + storedRoomId, JSON.stringify(storedMessages));
 
                 // Clear input field after sending
                 messageInput.value = "";
